@@ -659,7 +659,8 @@ object ZSinkSpec extends ZIOBaseSpec {
       suite("Combinators")(
         test("raceBoth") {
           check(Gen.listOf(Gen.int(0, 10)), Gen.boolean, Gen.boolean) { (ints, success1, success2) =>
-            val stream = ints ++ (if (success1) List(20) else Nil) ++ (if (success2) List(40) else Nil)
+//            val stream = ints ++ (if (success1) List(20) else Nil) ++ (if (!success1 && success2) List(40) else Nil)
+            val stream = List(20, 40)
             sinkRaceLaw(
               ZStream.fromIterableZIO(Random.shuffle(stream).provideLayer(Random.live)),
               findSink(20),
