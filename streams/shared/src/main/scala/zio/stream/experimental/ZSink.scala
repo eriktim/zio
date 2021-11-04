@@ -344,17 +344,15 @@ class ZSink[-R, -InErr, -In, +OutErr, +L, +Z](val channel: ZChannel[R, InErr, Ch
   )(implicit trace: ZTraceElement): ZSink[R1, InErr1, In1, OutErr1, L1, Either[Z, Z1]] = {
     val managed =
       for {
-        hub <- Hub.bounded[Exit[Either[InErr1, Any], Chunk[In1]]](1).toManaged
-        q1  <- hub.subscribe
-        q2  <- hub.subscribe
-        c1   = ZChannel.fromQueue(q1) >>> self.channel
-        c2   = ZChannel.fromQueue(q2) >>> that.channel
-        out = c1.mergeWith(c2)(
-                selfDone => ZChannel.MergeDecision.done(ZIO.done(selfDone).map(Left(_))),
-                thatDone => ZChannel.MergeDecision.done(ZIO.done(thatDone).map(Right(_)))
-              )
-        in = ZChannel.toHub(hub)
-        channel = in.mergeWith(out)(
+        hub   <- ZHub.bounded[Either[Exit[InErr1, Any], Chunk[In1]]](1).toManaged
+        c1    <- ZChannel.fromHubManaged(hub)
+        c2    <- ZChannel.fromHubManaged(hub)
+        reader = ZChannel.toHub(hub)
+        writer = (c1 >>> self.channel).mergeWith(c2 >>> that.channel)(
+                   selfDone => ZChannel.MergeDecision.done(ZIO.done(selfDone).map(Left(_))),
+                   thatDone => ZChannel.MergeDecision.done(ZIO.done(thatDone).map(Right(_)))
+                 )
+        channel = reader.mergeWith(writer)(
                     _ => ZChannel.MergeDecision.await(ZIO.done(_)),
                     done => ZChannel.MergeDecision.done(ZIO.done(done))
                   )
